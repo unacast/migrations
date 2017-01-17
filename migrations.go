@@ -10,6 +10,9 @@ import (
 
 // New creates the migrator context
 func New(db *sql.DB) *Migrator {
+	if db == nil {
+		panic("sql.DB should'nt be nil.")
+	}
 	migrator := &Migrator{connection: db}
 	if !migrator.migrationsTableExists() {
 		migrator.createMigrationTable()
