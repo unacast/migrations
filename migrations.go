@@ -81,8 +81,8 @@ func (migrator *Migrator) Migrate(getFiles GetFiles, getContent GetContent) {
 			logDebug("With content: ", sqlContent)
 
 			timestamp := time.Now().UTC()
-			_, err2 := migrator.connection.Exec(sqlContent)
-			if err2 != nil {
+			_, execErr := migrator.connection.Exec(sqlContent)
+			if execErr != nil {
 				logError("Failed to execute migration: ", f, err)
 				tx.Rollback()
 				panic(err)
