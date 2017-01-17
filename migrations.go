@@ -36,11 +36,14 @@ type Migrator struct {
 
 // GetFiles defines the function interface for providing
 // filepaths to the migrator. The user is expected to implement this function.
+// Example of functions are `ioutil.ReadDir`, https://golang.org/pkg/io/ioutil/#ReadDir,
+// and then use the file name each file, and `assets.AssetDir("migrations")`.
 type GetFiles func() []string
 
 // GetContent defines the function interface for providing content from a file.
 // The expected input is a filepath and the output is the content of that file.
-// The user is expected to implement this function.
+// The user is expected to implement this function. The string the GetContent
+// takes as argument will be one of the strings from GetFiles.
 type GetContent func(string) string
 
 type migration struct {
