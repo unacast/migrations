@@ -10,11 +10,19 @@ import (
 	"fmt"
 )
 
+// Migrator keeps the state of the migration. This structure is
+// used to run migrations
 type Migrator struct {
 	connection *sql.DB
 }
 
+// GetFiles defines the function interface for providing
+// filepaths to the migrator. The user is expected to implement this function.
 type GetFiles func() []string
+
+// GetContent defines the function interface for providing content from a file.
+// The expected input is a filepath and the output is the content of that file.
+// The user is expected to implement this function.
 type GetContent func(string) string
 
 type migration struct {
