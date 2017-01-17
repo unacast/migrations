@@ -2,28 +2,11 @@ package migrations
 
 import (
 	"database/sql"
-	"log"
-	"os"
 	"sort"
 	"time"
 
 	"fmt"
 )
-
-type Migrator struct {
-	connection *sql.DB
-}
-
-type GetFiles func() []string
-type GetContent func(string) string
-
-type migration struct {
-	file      string
-	timestamp time.Time
-}
-
-var logError = log.New(os.Stderr, "[ERROR] ", log.LstdFlags)
-var logDebug = log.New(os.Stdout, "[DEBUG]", log.LstdFlags)
 
 const migrationTableName = "__migrations"
 const createMigrationTableSQL = `
@@ -33,8 +16,11 @@ const createMigrationTableSQL = `
     PRIMARY KEY (file));
 `
 
-// GetMigrator creates the migrator context
-func GetMigrator(db *sql.DB) *Migrator {
+// New creates the migrator context
+func New(db *sql.DB) *Migrator {
+	if db == nil {
+		panic("sql.DB should'nt be nil.")
+	}
 	migrator := &Migrator{connection: db}
 	if !migrator.migrationsTableExists() {
 		migrator.createMigrationTable()
@@ -42,14 +28,37 @@ func GetMigrator(db *sql.DB) *Migrator {
 	return migrator
 }
 
-// RunMigration executes the migration
+// Migrator keeps the state of the migration. This structure is
+// used to run migrations
+type Migrator struct {
+	connection *sql.DB
+}
+
+// GetFiles defines the function interface for providing
+// filepaths to the migrator. The user is expected to implement this function.
+// Example of functions are `ioutil.ReadDir`, https://golang.org/pkg/io/ioutil/#ReadDir,
+// and then use the file name each file, and `assets.AssetDir("migrations")`.
+type GetFiles func() []string
+
+// GetContent defines the function interface for providing content from a file.
+// The expected input is a filepath and the output is the content of that file.
+// The user is expected to implement this function. The string the GetContent
+// takes as argument will be one of the strings from GetFiles.
+type GetContent func(string) string
+
+type migration struct {
+	file      string
+	timestamp time.Time
+}
+
+// Migrate executes the migration
 // - Get candidate files
 // - Get already migrated files
 // - Execute all the files that hasn't been migrated
 // - Update migration table with result
-func (migrator *Migrator) RunMigration(getFiles GetFiles, getContent GetContent) {
+func (migrator *Migrator) Migrate(getFiles GetFiles, getContent GetContent) {
 	startTime := time.Now().UTC()
-	logDebug.Println("Starting migration: ", startTime)
+	logDebug("Starting migration: ", startTime)
 	fileNames := getFiles()
 	sort.Strings(fileNames)
 	existingMigrations := migrator.getExistingMigrations()
@@ -62,28 +71,29 @@ func (migrator *Migrator) RunMigration(getFiles GetFiles, getContent GetContent)
 
 	tx, err := migrator.connection.Begin()
 	if err != nil {
-		logError.Panic("Failed to create transaction for migration: ", err)
+		panic("Failed to create transaction for migration: " + err.Error())
 	}
 	newMigrations := make([]migration, 0, 10)
-	logDebug.Println("All migrations:", fileNames)
+
+	logDebug("All migrations:", fileNames)
 	for _, f := range fileNames {
 		if _, ok := existingMigrationMap[f]; !ok {
 			sqlContent := getContent(f)
 
-			logDebug.Println("Running migration: ", f)
-			logDebug.Println("With content: ", sqlContent)
+			logDebug("Running migration: ", f)
+			logDebug("With content: ", sqlContent)
 
 			timestamp := time.Now().UTC()
-			_, err := migrator.connection.Exec(sqlContent)
-			if err != nil {
-				logError.Println("Failed to execute migration: ", f, err)
+			_, execErr := migrator.connection.Exec(sqlContent)
+			if execErr != nil {
+				logError("Failed to execute migration: ", f, err)
 				tx.Rollback()
 				panic(err)
 			}
 			mig := migration{file: f, timestamp: timestamp}
 			err = migrator.addMigration(migration{file: f, timestamp: timestamp})
 			if err != nil {
-				logError.Println("Failed to update migration table: ", err)
+				logError("Failed to update migration table: ", err)
 				tx.Rollback()
 				panic(err)
 			}
@@ -91,32 +101,40 @@ func (migrator *Migrator) RunMigration(getFiles GetFiles, getContent GetContent)
 		}
 	}
 	err = tx.Commit()
+	if err != nil {
+		panic(err)
+	}
 	endTime := time.Now().UTC()
 	duration := endTime.Sub(startTime)
-	logDebug.Println("Migration done: ", endTime)
-	logDebug.Println("Migration duration: ", duration)
+	logDebug("Migration done: ", endTime)
+	logDebug("Migration duration: ", duration)
 }
 
 func (migrator *Migrator) migrationsTableExists() bool {
 	rows, err := migrator.connection.Query("SHOW TABLES")
+	if err != nil {
+		logError("Couldn't query for tables", err)
+	}
 	defer rows.Close()
+
 	for rows.Next() {
 		var tableName string
-		err = rows.Scan(&tableName)
+		err := rows.Scan(&tableName)
 		if err != nil {
-			logError.Panic("Failed to read file item row: ", err)
+			logError("Failed to read file item row: ", err)
 		}
 		if tableName == migrationTableName {
 			return true
 		}
 	}
+
 	return false
 }
 
 func (migrator *Migrator) createMigrationTable() {
 	_, err := migrator.connection.Exec(createMigrationTableSQL)
 	if err != nil {
-		logError.Panic("Failed to create migration table", err)
+		logError("Failed to create migration table: " + err.Error())
 	}
 }
 
@@ -135,7 +153,7 @@ func (migrator *Migrator) addMigration(migration migration) error {
 func (migrator *Migrator) getExistingMigrations() []migration {
 	rows, err := migrator.connection.Query(fmt.Sprintf("SELECT file, timestamp FROM %s", migrationTableName))
 	if err != nil {
-		logError.Panic("Failed to create migration select statement: ", err)
+		panic("Failed to create migration select statement: " + err.Error())
 	}
 	defer rows.Close()
 	migrations := make([]migration, 0, 10)
@@ -146,7 +164,7 @@ func (migrator *Migrator) getExistingMigrations() []migration {
 		)
 		err = rows.Scan(&file, &timestamp)
 		if err != nil {
-			logError.Panic("Failed to scan migration row: ", err)
+			panic("Failed to scan migration row: " + err.Error())
 		}
 		migrations = append(migrations, migration{file: file, timestamp: timestamp})
 	}
