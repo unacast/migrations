@@ -8,6 +8,14 @@ import (
 	"fmt"
 )
 
+const migrationTableName = "__migrations"
+const createMigrationTableSQL = `
+    CREATE TABLE pollo.__migrations (
+    file VARCHAR(255) NOT NULL,
+    timestamp DATETIME NOT NULL,
+    PRIMARY KEY (file));
+`
+
 // New creates the migrator context
 func New(db *sql.DB) *Migrator {
 	if db == nil {
@@ -39,14 +47,6 @@ type migration struct {
 	file      string
 	timestamp time.Time
 }
-
-const migrationTableName = "__migrations"
-const createMigrationTableSQL = `
-    CREATE TABLE pollo.__migrations (
-    file VARCHAR(255) NOT NULL,
-    timestamp DATETIME NOT NULL,
-    PRIMARY KEY (file));
-`
 
 // Migrate executes the migration
 // - Get candidate files
