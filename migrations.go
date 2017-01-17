@@ -48,12 +48,12 @@ const createMigrationTableSQL = `
     PRIMARY KEY (file));
 `
 
-// RunMigration executes the migration
+// Migrate executes the migration
 // - Get candidate files
 // - Get already migrated files
 // - Execute all the files that hasn't been migrated
 // - Update migration table with result
-func (migrator *Migrator) RunMigration(getFiles GetFiles, getContent GetContent) {
+func (migrator *Migrator) Migrate(getFiles GetFiles, getContent GetContent) {
 	startTime := time.Now().UTC()
 	logDebug("Starting migration: ", startTime)
 	fileNames := getFiles()
