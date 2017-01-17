@@ -22,7 +22,14 @@ func runMigrations() {
 }
 ```
 
+## Getting started
+
+### Install
+
+### Setup
+
 ## TODO
 
 - [ ] Write a better README.MD
+- [ ] Getting started
 
