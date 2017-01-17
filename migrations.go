@@ -10,6 +10,15 @@ import (
 	"fmt"
 )
 
+// New creates the migrator context
+func New(db *sql.DB) *Migrator {
+	migrator := &Migrator{connection: db}
+	if !migrator.migrationsTableExists() {
+		migrator.createMigrationTable()
+	}
+	return migrator
+}
+
 // Migrator keeps the state of the migration. This structure is
 // used to run migrations
 type Migrator struct {
@@ -40,15 +49,6 @@ const createMigrationTableSQL = `
     timestamp DATETIME NOT NULL,
     PRIMARY KEY (file));
 `
-
-// GetMigrator creates the migrator context
-func GetMigrator(db *sql.DB) *Migrator {
-	migrator := &Migrator{connection: db}
-	if !migrator.migrationsTableExists() {
-		migrator.createMigrationTable()
-	}
-	return migrator
-}
 
 // RunMigration executes the migration
 // - Get candidate files
