@@ -2,8 +2,6 @@ package migrations
 
 import (
 	"database/sql"
-	"log"
-	"os"
 	"sort"
 	"time"
 
@@ -39,9 +37,6 @@ type migration struct {
 	timestamp time.Time
 }
 
-var logError = log.New(os.Stderr, "[ERROR] ", log.LstdFlags)
-var logDebug = log.New(os.Stdout, "[DEBUG]", log.LstdFlags)
-
 const migrationTableName = "__migrations"
 const createMigrationTableSQL = `
     CREATE TABLE pollo.__migrations (
@@ -57,7 +52,7 @@ const createMigrationTableSQL = `
 // - Update migration table with result
 func (migrator *Migrator) RunMigration(getFiles GetFiles, getContent GetContent) {
 	startTime := time.Now().UTC()
-	logDebug.Println("Starting migration: ", startTime)
+	logDebug("Starting migration: ", startTime)
 	fileNames := getFiles()
 	sort.Strings(fileNames)
 	existingMigrations := migrator.getExistingMigrations()
@@ -70,28 +65,29 @@ func (migrator *Migrator) RunMigration(getFiles GetFiles, getContent GetContent)
 
 	tx, err := migrator.connection.Begin()
 	if err != nil {
-		logError.Panic("Failed to create transaction for migration: ", err)
+		panic("Failed to create transaction for migration: " + err.Error())
 	}
 	newMigrations := make([]migration, 0, 10)
-	logDebug.Println("All migrations:", fileNames)
+
+	logDebug("All migrations:", fileNames)
 	for _, f := range fileNames {
 		if _, ok := existingMigrationMap[f]; !ok {
 			sqlContent := getContent(f)
 
-			logDebug.Println("Running migration: ", f)
-			logDebug.Println("With content: ", sqlContent)
+			logDebug("Running migration: ", f)
+			logDebug("With content: ", sqlContent)
 
 			timestamp := time.Now().UTC()
 			_, err2 := migrator.connection.Exec(sqlContent)
 			if err2 != nil {
-				logError.Println("Failed to execute migration: ", f, err)
+				logError("Failed to execute migration: ", f, err)
 				tx.Rollback()
 				panic(err)
 			}
 			mig := migration{file: f, timestamp: timestamp}
 			err = migrator.addMigration(migration{file: f, timestamp: timestamp})
 			if err != nil {
-				logError.Println("Failed to update migration table: ", err)
+				logError("Failed to update migration table: ", err)
 				tx.Rollback()
 				panic(err)
 			}
@@ -104,14 +100,14 @@ func (migrator *Migrator) RunMigration(getFiles GetFiles, getContent GetContent)
 	}
 	endTime := time.Now().UTC()
 	duration := endTime.Sub(startTime)
-	logDebug.Println("Migration done: ", endTime)
-	logDebug.Println("Migration duration: ", duration)
+	logDebug("Migration done: ", endTime)
+	logDebug("Migration duration: ", duration)
 }
 
 func (migrator *Migrator) migrationsTableExists() bool {
 	rows, err := migrator.connection.Query("SHOW TABLES")
 	if err != nil {
-		logError.Panic("Couldn't query for tables", err)
+		logError("Couldn't query for tables", err)
 	}
 	defer rows.Close()
 
@@ -119,7 +115,7 @@ func (migrator *Migrator) migrationsTableExists() bool {
 		var tableName string
 		err := rows.Scan(&tableName)
 		if err != nil {
-			logError.Panic("Failed to read file item row: ", err)
+			logError("Failed to read file item row: ", err)
 		}
 		if tableName == migrationTableName {
 			return true
@@ -132,7 +128,7 @@ func (migrator *Migrator) migrationsTableExists() bool {
 func (migrator *Migrator) createMigrationTable() {
 	_, err := migrator.connection.Exec(createMigrationTableSQL)
 	if err != nil {
-		logError.Panic("Failed to create migration table", err)
+		logError("Failed to create migration table: " + err.Error())
 	}
 }
 
@@ -151,7 +147,7 @@ func (migrator *Migrator) addMigration(migration migration) error {
 func (migrator *Migrator) getExistingMigrations() []migration {
 	rows, err := migrator.connection.Query(fmt.Sprintf("SELECT file, timestamp FROM %s", migrationTableName))
 	if err != nil {
-		logError.Panic("Failed to create migration select statement: ", err)
+		panic("Failed to create migration select statement: " + err.Error())
 	}
 	defer rows.Close()
 	migrations := make([]migration, 0, 10)
@@ -162,7 +158,7 @@ func (migrator *Migrator) getExistingMigrations() []migration {
 		)
 		err = rows.Scan(&file, &timestamp)
 		if err != nil {
-			logError.Panic("Failed to scan migration row: ", err)
+			panic("Failed to scan migration row: " + err.Error())
 		}
 		migrations = append(migrations, migration{file: file, timestamp: timestamp})
 	}
