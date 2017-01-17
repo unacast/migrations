@@ -39,3 +39,8 @@ func runMigrations() {
     db.Close()
 }
 ```
+
+## Maintainers
+
+- @mastoj
+- @gronnbeck
