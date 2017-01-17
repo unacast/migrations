@@ -82,8 +82,8 @@ func (migrator *Migrator) RunMigration(getFiles GetFiles, getContent GetContent)
 			logDebug.Println("With content: ", sqlContent)
 
 			timestamp := time.Now().UTC()
-			_, err := migrator.connection.Exec(sqlContent)
-			if err != nil {
+			_, err2 := migrator.connection.Exec(sqlContent)
+			if err2 != nil {
 				logError.Println("Failed to execute migration: ", f, err)
 				tx.Rollback()
 				panic(err)
@@ -99,6 +99,9 @@ func (migrator *Migrator) RunMigration(getFiles GetFiles, getContent GetContent)
 		}
 	}
 	err = tx.Commit()
+	if err != nil {
+		panic(err)
+	}
 	endTime := time.Now().UTC()
 	duration := endTime.Sub(startTime)
 	logDebug.Println("Migration done: ", endTime)
@@ -107,10 +110,14 @@ func (migrator *Migrator) RunMigration(getFiles GetFiles, getContent GetContent)
 
 func (migrator *Migrator) migrationsTableExists() bool {
 	rows, err := migrator.connection.Query("SHOW TABLES")
+	if err != nil {
+		logError.Panic("Couldn't query for tables", err)
+	}
 	defer rows.Close()
+
 	for rows.Next() {
 		var tableName string
-		err = rows.Scan(&tableName)
+		err := rows.Scan(&tableName)
 		if err != nil {
 			logError.Panic("Failed to read file item row: ", err)
 		}
@@ -118,6 +125,7 @@ func (migrator *Migrator) migrationsTableExists() bool {
 			return true
 		}
 	}
+
 	return false
 }
 
