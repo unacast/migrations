@@ -10,7 +10,7 @@ import (
 
 const migrationTableName = "__migrations"
 const createMigrationTableSQL = `
-    CREATE TABLE pollo.__migrations (
+    CREATE TABLE __migrations (
     file VARCHAR(255) NOT NULL,
     timestamp DATETIME NOT NULL,
     PRIMARY KEY (file));
