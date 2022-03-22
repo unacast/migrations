@@ -84,17 +84,21 @@ func (migrator *Migrator) Migrate(getFiles GetFiles, getContent GetContent) {
 			logDebug("With content: ", sqlContent)
 
 			timestamp := time.Now().UTC()
-			_, execErr := migrator.connection.Exec(sqlContent)
-			if execErr != nil {
+			_, err := migrator.connection.Exec(sqlContent)
+			if err != nil {
 				logError("Failed to execute migration: ", f, err)
-				tx.Rollback()
+				if err := tx.Rollback(); err != nil {
+					err = fmt.Errorf("failed trying to roll back from %s: %w", err, err)
+				}
 				panic(err)
 			}
 			mig := migration{file: f, timestamp: timestamp}
 			err = migrator.addMigration(migration{file: f, timestamp: timestamp})
 			if err != nil {
 				logError("Failed to update migration table: ", err)
-				tx.Rollback()
+				if err := tx.Rollback(); err != nil {
+					err = fmt.Errorf("failed trying to roll back from %s: %w", err, err)
+				}
 				panic(err)
 			}
 			newMigrations = append(newMigrations, mig)
@@ -115,7 +119,12 @@ func (migrator *Migrator) migrationsTableExists() bool {
 	if err != nil {
 		logError("Couldn't query for tables", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			fmt.Println(fmt.Errorf("failed to close the migrationsTableExists query: %w", err))
+		}
+	}(rows)
 
 	for rows.Next() {
 		var tableName string
@@ -155,7 +164,12 @@ func (migrator *Migrator) getExistingMigrations() []migration {
 	if err != nil {
 		panic("Failed to create migration select statement: " + err.Error())
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			fmt.Println(fmt.Errorf("failed to close the getExistingMigrations query: %w", err))
+		}
+	}(rows)
 	migrations := make([]migration, 0, 10)
 	for rows.Next() {
 		var (
